@@ -97,7 +97,7 @@ func main() {
 			// 获取 DHCP 报文类型 (通过 Option 53)
 			var msgType layers.DHCPMsgType
 			for _, opt := range dhcp.Options {
-				if opt.Type == layers.DHCPOptionMessageType {
+				if opt.Type == layers.DHCPOptMessageType {
 					msgType = layers.DHCPMsgType(opt.Data[0])
 					break
 				}
@@ -107,24 +107,23 @@ func main() {
 			if msgType == layers.DHCPMsgTypeAck {
 				fmt.Println("\n[捕获到 IPv4 DHCP ACK 报文 - 配置下发]")
 				fmt.Printf("下发 IP (YourIP): %s\n", dhcp.YourClientIP)
-				// 修复：ServerIP 字段在新版本中通常为 ServerIPAddress
-				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerIPAddress)
+				// 修正：ServerIP 字段
+				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerIP)
 
 				for _, opt := range dhcp.Options {
 					switch opt.Type {
-					case layers.DHCPOptionSubnetMask:
+					case layers.DHCPOptSubnetMask:
 						fmt.Printf("子网掩码: %s\n", opt.Data)
-					case layers.DHCPOptionRouter:
+					case layers.DHCPOptRouter:
 						fmt.Printf("默认网关: %s\n", opt.Data)
-					// 修复：常量名称适配
-					case layers.DHCPOptionDomainNameServer:
+					// 修正：常量名称适配为 DHCPOpt 前缀
+					case layers.DHCPOptDNS:
 						fmt.Printf("DNS 服务器: %s\n", opt.Data)
-					case layers.DHCPOptionDomainName:
+					case layers.DHCPOptDomainName:
 						fmt.Printf("域名: %s\n", string(opt.Data))
-					case layers.DHCPOptionBroadcastAddress:
+					case layers.DHCPOptBroadcastAddress:
 						fmt.Printf("广播地址: %s\n", opt.Data)
-					// 修复：常量名称适配
-					case layers.DHCPOptionIPAddressLeaseTime:
+					case layers.DHCPOptLeaseTime:
 						if len(opt.Data) == 4 {
 							seconds := binary.BigEndian.Uint32(opt.Data)
 							fmt.Printf("IP 租约时间: %d 秒\n", seconds)
@@ -155,7 +154,7 @@ func main() {
 
 			fmt.Println("--- DHCPv6 下发的 Option 信息 ---")
 			for _, opt := range dhcpv6.Options {
-				// 修复：DHCPv6Option 的字段名是 Code 而不是 Type
+				// 修正：DHCPv6Option 的字段名是 Code
 				fmt.Printf("  选项代码(Code): %v | 长度: %d | 原始数据(Hex): %x\n", opt.Code, opt.Length, opt.Data)
 			}
 		}
