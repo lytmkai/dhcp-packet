@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -103,28 +104,36 @@ func main() {
 
 			if msgType == layers.DHCPMsgTypeAck {
 				fmt.Println("\n[捕获到 IPv4 DHCP ACK 报文 - 配置下发]")
-				fmt.Printf("下发 IP (YourIP): %s\n", dhcp.YourClientIP)
-				// 【v1.1.19 最终确认】服务器IP字段为 ServerIP
-				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.NextServerIP)
+				fmt.Printf("下发 IP (YourClientIP): %s\n", dhcp.YourClientIP)
+				fmt.Printf("DHCP 服务器 (NextServerIP): %s\n", dhcp.NextServerIP)
 
 				for _, opt := range dhcp.Options {
 					switch opt.Type {
 					case layers.DHCPOptSubnetMask:
-						fmt.Printf("子网掩码: %s\n", opt.Data)
+						ip := net.IPv4(opt.Data[0], opt.Data[1], opt.Data[2], opt.Data[3])
+						fmt.Printf("子网掩码: %s\n", ip)
 					case layers.DHCPOptRouter:
-						fmt.Printf("默认网关: %s\n", opt.Data)
+						ip := net.IPv4(opt.Data[0], opt.Data[1], opt.Data[2], opt.Data[3])
+						fmt.Printf("默认网关: %s\n", ip)
 					case layers.DHCPOptDNS:
-						fmt.Printf("DNS 服务器: %s\n", opt.Data)
+						ip := net.IPv4(opt.Data[0], opt.Data[1], opt.Data[2], opt.Data[3])
+						fmt.Printf("DNS 服务器: %s\n", ip)
 					case layers.DHCPOptDomainName:
 						fmt.Printf("域名: %s\n", string(opt.Data))
-					// 【v1.1.19 专属】广播地址常量为 DHCPOptBroadcastAddr
 					case layers.DHCPOptBroadcastAddr:
-						fmt.Printf("广播地址: %s\n", opt.Data)
+						ip := net.IPv4(opt.Data[0], opt.Data[1], opt.Data[2], opt.Data[3])
+						fmt.Printf("广播地址: %s\n", ip)
 					case layers.DHCPOptLeaseTime:
 						if len(opt.Data) == 4 {
 							seconds := binary.BigEndian.Uint32(opt.Data)
 							fmt.Printf("IP 租约时间: %d 秒\n", seconds)
 						}
+					case layers.DHCPOptServerIdentifier:
+						ip := net.IPv4(opt.Data[0], opt.Data[1], opt.Data[2], opt.Data[3])
+						fmt.Printf("DHCP 服务器标识符 (Option 54): %s\n", ip)
+					default:
+						// 其他选项仍以 hex 显示（避免误解析）
+						fmt.Printf("选项 %d (Hex): %x\n", opt.Type, opt.Data)
 					}
 				}
 			} else {
@@ -151,7 +160,54 @@ func main() {
 
 			fmt.Println("--- DHCPv6 下发的 Option 信息 ---")
 			for _, opt := range dhcpv6.Options {
-				fmt.Printf("  选项代码(Code): %v | 长度: %d | 原始数据(Hex): %x\n", opt.Code, opt.Length, opt.Data)
+				switch opt.Code {
+				case layers.DHCPv6OptServerID:
+					// ServerID 通常是 DUID，常见格式：DUID-LLT (Type=1) 或 DUID-LL (Type=3)
+					// 尝试解析为 IPv6 地址（若长度=16且前缀为 FE80::/10 或全局地址）
+					if len(opt.Data) == 16 {
+						ip := net.IPv6Address(opt.Data[0], opt.Data[1], opt.Data[2], opt.Data[3],
+							opt.Data[4], opt.Data[5], opt.Data[6], opt.Data[7],
+							opt.Data[8], opt.Data[9], opt.Data[10], opt.Data[11],
+							opt.Data[12], opt.Data[13], opt.Data[14], opt.Data[15])
+						fmt.Printf("  ServerID (IPv6): %s\n", ip)
+					} else {
+						fmt.Printf("  ServerID (DUID, Hex): %x\n", opt.Data)
+					}
+				case layers.DHCPv6OptClientID:
+					if len(opt.Data) >= 14 && opt.Data[0] == 1 { // DUID-LLT (Type=1)
+						mac := net.HardwareAddr(opt.Data[8:14])
+						fmt.Printf("  ClientID (DUID-LLT, MAC): %s\n", mac)
+					} else if len(opt.Data) >= 10 && opt.Data[0] == 3 { // DUID-LL (Type=3)
+						mac := net.HardwareAddr(opt.Data[6:12])
+						fmt.Printf("  ClientID (DUID-LL, MAC): %s\n", mac)
+					} else {
+						fmt.Printf("  ClientID (Hex): %x\n", opt.Data)
+					}
+				case layers.DHCPv6OptIA_NA:
+					fmt.Printf("  IA_NA (IAID): %x\n", opt.Data[0:4])
+				case layers.DHCPv6OptIA_TA:
+					fmt.Printf("  IA_TA (IAID): %x\n", opt.Data[0:4])
+				case layers.DHCPv6OptIA_PD:
+					fmt.Printf("  IA_PD (IAID): %x\n", opt.Data[0:4])
+				case layers.DHCPv6OptDNSServers:
+					if len(opt.Data)%16 == 0 {
+						fmt.Printf("  DNS Servers:")
+						for i := 0; i < len(opt.Data); i += 16 {
+							ip := net.IPv6Address(opt.Data[i], opt.Data[i+1], opt.Data[i+2], opt.Data[i+3],
+								opt.Data[i+4], opt.Data[i+5], opt.Data[i+6], opt.Data[i+7],
+								opt.Data[i+8], opt.Data[i+9], opt.Data[i+10], opt.Data[i+11],
+								opt.Data[i+12], opt.Data[i+13], opt.Data[i+14], opt.Data[i+15])
+							fmt.Printf(" %s", ip)
+						}
+						fmt.Println()
+					} else {
+						fmt.Printf("  DNS Servers (Hex): %x\n", opt.Data)
+					}
+				case layers.DHCPv6OptDomainSearchList:
+					fmt.Printf("  Domain Search List: %s\n", string(opt.Data))
+				default:
+					fmt.Printf("  Option %d (Length=%d, Hex): %x\n", opt.Code, opt.Length, opt.Data)
+				}
 			}
 		}
 	}
