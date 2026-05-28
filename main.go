@@ -104,8 +104,8 @@ func main() {
 			if msgType == layers.DHCPMsgTypeAck {
 				fmt.Println("\n[捕获到 IPv4 DHCP ACK 报文 - 配置下发]")
 				fmt.Printf("下发 IP (YourIP): %s\n", dhcp.YourClientIP)
-				// 【修复】ServerIP -> ServerAddr
-				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerAddr)
+				// 【v1.1.19 专属】服务器IP字段为 ServerIPAddr
+				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerIPAddr)
 
 				for _, opt := range dhcp.Options {
 					switch opt.Type {
@@ -117,8 +117,8 @@ func main() {
 						fmt.Printf("DNS 服务器: %s\n", opt.Data)
 					case layers.DHCPOptDomainName:
 						fmt.Printf("域名: %s\n", string(opt.Data))
-					// 【修复】DHCPOptBroadcastAddress -> DHCPOptBroadcast
-					case layers.DHCPOptBroadcast:
+					// 【v1.1.19 专属】广播地址常量为 DHCPOptBroadcastAddr
+					case layers.DHCPOptBroadcastAddr:
 						fmt.Printf("广播地址: %s\n", opt.Data)
 					case layers.DHCPOptLeaseTime:
 						if len(opt.Data) == 4 {
