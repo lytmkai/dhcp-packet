@@ -66,7 +66,7 @@ func main() {
 	}
 	defer handle.Close()
 
-	// 设置 BPF 过滤器，同时抓取 DHCPv4 和 DHCPv6
+	// 设置 BPF 过滤器
 	err = handle.SetBPFFilter("udp and (port 67 or port 68 or port 546 or port 547)")
 	if err != nil {
 		log.Fatal("设置过滤器失败:", err)
@@ -94,25 +94,37 @@ func main() {
 				continue
 			}
 
+			// 获取 DHCP 报文类型 (通过 Option 53)
+			var msgType layers.DHCPMsgType
+			for _, opt := range dhcp.Options {
+				if opt.Type == layers.DHCPOptionMessageType {
+					msgType = layers.DHCPMsgType(opt.Data[0])
+					break
+				}
+			}
+
 			// 优先展示服务器下发的 ACK 包
-			if dhcp.MessageType == layers.DHCPMsgTypeAck {
+			if msgType == layers.DHCPMsgTypeAck {
 				fmt.Println("\n[捕获到 IPv4 DHCP ACK 报文 - 配置下发]")
 				fmt.Printf("下发 IP (YourIP): %s\n", dhcp.YourClientIP)
-				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerIP)
+				// 修复：ServerIP 字段在新版本中通常为 ServerIPAddress
+				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerIPAddress)
 
 				for _, opt := range dhcp.Options {
 					switch opt.Type {
-					case layers.DHCPOptSubnetMask:
+					case layers.DHCPOptionSubnetMask:
 						fmt.Printf("子网掩码: %s\n", opt.Data)
-					case layers.DHCPOptRouter:
+					case layers.DHCPOptionRouter:
 						fmt.Printf("默认网关: %s\n", opt.Data)
-					case layers.DHCPOptDomainNameServer:
+					// 修复：常量名称适配
+					case layers.DHCPOptionDomainNameServer:
 						fmt.Printf("DNS 服务器: %s\n", opt.Data)
-					case layers.DHCPOptDomainName:
+					case layers.DHCPOptionDomainName:
 						fmt.Printf("域名: %s\n", string(opt.Data))
-					case layers.DHCPOptBroadcastAddr:
+					case layers.DHCPOptionBroadcastAddress:
 						fmt.Printf("广播地址: %s\n", opt.Data)
-					case layers.DHCPOptIPAddressLeaseTime:
+					// 修复：常量名称适配
+					case layers.DHCPOptionIPAddressLeaseTime:
 						if len(opt.Data) == 4 {
 							seconds := binary.BigEndian.Uint32(opt.Data)
 							fmt.Printf("IP 租约时间: %d 秒\n", seconds)
@@ -120,8 +132,7 @@ func main() {
 					}
 				}
 			} else {
-				// 也可以简单打印其他类型的 IPv4 报文，方便观察交互过程
-				fmt.Printf("\n[IPv4 DHCP 交互] 类型: %v, 客户端MAC: %s\n", dhcp.MessageType, dhcp.ClientHWAddr)
+				fmt.Printf("\n[IPv4 DHCP 交互] 类型: %v, 客户端MAC: %s\n", msgType, dhcp.ClientHWAddr)
 			}
 		}
 
@@ -133,7 +144,6 @@ func main() {
 				continue
 			}
 
-			// 打印 IPv6 的基础信息
 			fmt.Println("\n[捕获到 IPv6 DHCPv6 报文]")
 			fmt.Printf("报文类型 (MsgType): %v\n", dhcpv6.MsgType)
 			fmt.Printf("事务ID (TransactionID): %x\n", dhcpv6.TransactionID)
@@ -143,12 +153,10 @@ func main() {
 				fmt.Printf("源 IPv6: %s -> 目的 IPv6: %s\n", ipv6.SrcIP, ipv6.DstIP)
 			}
 
-			// 遍历并打印 DHCPv6 的所有 Option
 			fmt.Println("--- DHCPv6 下发的 Option 信息 ---")
 			for _, opt := range dhcpv6.Options {
-				fmt.Printf("  选项类型: %v | 长度: %d | 原始数据(Hex): %x\n", opt.Type, opt.Length, opt.Data)
-				// 注：gopacket 对 DHCPv6 内部 Option 的自动解码相对底层，
-				// 如果需要解析出 IPv6 的 DNS 或 IA_NA 地址，需要根据 RFC8415 进一步手动切割 opt.Data。
+				// 修复：DHCPv6Option 的字段名是 Code 而不是 Type
+				fmt.Printf("  选项代码(Code): %v | 长度: %d | 原始数据(Hex): %x\n", opt.Code, opt.Length, opt.Data)
 			}
 		}
 	}
