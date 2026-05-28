@@ -48,7 +48,6 @@ func main() {
 		log.Fatal("无效的网卡编号！")
 	}
 
-	// 获取用户选中的网卡对象
 	selectedDevice := devices[selection-1]
 	fmt.Printf("\n已选择网卡: %s (%s)\n\n", selectedDevice.Name, selectedDevice.Description)
 
@@ -66,7 +65,6 @@ func main() {
 	}
 	defer handle.Close()
 
-	// 设置 BPF 过滤器
 	err = handle.SetBPFFilter("udp and (port 67 or port 68 or port 546 or port 547)")
 	if err != nil {
 		log.Fatal("设置过滤器失败:", err)
@@ -103,12 +101,11 @@ func main() {
 				}
 			}
 
-			// 优先展示服务器下发的 ACK 包
 			if msgType == layers.DHCPMsgTypeAck {
 				fmt.Println("\n[捕获到 IPv4 DHCP ACK 报文 - 配置下发]")
 				fmt.Printf("下发 IP (YourIP): %s\n", dhcp.YourClientIP)
-				// 修正：ServerIP 字段
-				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerIP)
+				// 【修复】ServerIP -> ServerAddr
+				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerAddr)
 
 				for _, opt := range dhcp.Options {
 					switch opt.Type {
@@ -116,12 +113,12 @@ func main() {
 						fmt.Printf("子网掩码: %s\n", opt.Data)
 					case layers.DHCPOptRouter:
 						fmt.Printf("默认网关: %s\n", opt.Data)
-					// 修正：常量名称适配为 DHCPOpt 前缀
 					case layers.DHCPOptDNS:
 						fmt.Printf("DNS 服务器: %s\n", opt.Data)
 					case layers.DHCPOptDomainName:
 						fmt.Printf("域名: %s\n", string(opt.Data))
-					case layers.DHCPOptBroadcastAddress:
+					// 【修复】DHCPOptBroadcastAddress -> DHCPOptBroadcast
+					case layers.DHCPOptBroadcast:
 						fmt.Printf("广播地址: %s\n", opt.Data)
 					case layers.DHCPOptLeaseTime:
 						if len(opt.Data) == 4 {
@@ -154,7 +151,6 @@ func main() {
 
 			fmt.Println("--- DHCPv6 下发的 Option 信息 ---")
 			for _, opt := range dhcpv6.Options {
-				// 修正：DHCPv6Option 的字段名是 Code
 				fmt.Printf("  选项代码(Code): %v | 长度: %d | 原始数据(Hex): %x\n", opt.Code, opt.Length, opt.Data)
 			}
 		}
