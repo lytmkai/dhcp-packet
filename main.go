@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// 替换为你实际的网卡名称，可以通过 pcap.FindAllDevs() 获取
-	deviceName := "\\Device\\NPF_{你的网卡GUID}" 
+	deviceName := "\\Device\\NTPNP_PCI0008" 
 	snapshotLen := int32(65535)
 	promiscuous := true
 	timeout := pcap.BlockForever
