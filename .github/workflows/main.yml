@@ -29,11 +29,8 @@ jobs:
 
       - name: Tidy and verify
         run: |
-
           go clean -modcache
-          
           go mod tidy
-#          git diff --exit-code go.mod go.sum 
           go doc github.com/google/gopacket/layers.DHCPv4
 
       - name: Build Windows executable
