@@ -104,8 +104,8 @@ func main() {
 			if msgType == layers.DHCPMsgTypeAck {
 				fmt.Println("\n[捕获到 IPv4 DHCP ACK 报文 - 配置下发]")
 				fmt.Printf("下发 IP (YourIP): %s\n", dhcp.YourClientIP)
-				// 【v1.1.19 专属】服务器IP字段为 ServerIPAddr
-				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerIPAddr)
+				// 【v1.1.19 最终确认】服务器IP字段为 ServerIP
+				fmt.Printf("DHCP 服务器 (ServerIP): %s\n", dhcp.ServerIP)
 
 				for _, opt := range dhcp.Options {
 					switch opt.Type {
