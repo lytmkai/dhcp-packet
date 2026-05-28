@@ -202,7 +202,7 @@ func handleDHCP(packet gopacket.Packet, udp *layers.UDP) {
 // ================= RA 处理逻辑 =================
 
 func handleRA(packet gopacket.Packet, icmp *layers.ICMPv6) {
-	// ICMPv6 Type 134 = Router Advertisement
+	// 仅处理 Router Advertisement (Type 134)
 	if icmp.TypeCode.Type() != 134 {
 		return
 	}
@@ -214,7 +214,23 @@ func handleRA(packet gopacket.Packet, icmp *layers.ICMPv6) {
 	ipv6 := ipv6Layer.(*layers.IPv6)
 
 	fmt.Printf("\n[捕获到 RA 报文] 源 IPv6: %s\n", ipv6.SrcIP)
-	parseRAOptions(icmp.Payload)
+
+	// ⚠️ Windows 兼容核心修复：
+	// 不使用 icmp.Payload，直接通过固定偏移量从原始数据包中提取 RA Options
+	rawData := packet.Data()
+	
+	// Ethernet(14) + IPv6(40) + ICMPv6(8) = 62
+	const raOptionsOffset = 62 
+	
+	if len(rawData) <= raOptionsOffset {
+		fmt.Println("  [信息] 数据包过短或无 Options (精简版 RA)")
+		fmt.Println("---")
+		return
+	}
+
+	// 截取 RA Options 部分并交由解析函数处理
+	optionsData := rawData[raOptionsOffset:]
+	parseRAOptions(optionsData)
 	fmt.Println("---")
 }
 
