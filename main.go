@@ -250,63 +250,50 @@ func handleRA(packet gopacket.Packet, icmp *layers.ICMPv6) {
 }
 
 func parseRAOptions(optionsData []byte) {
-	i := 0
-	// Options 格式: [Type(1)][Len(1)][Data(变长, 单位8字节)]
-	for i+2 <= len(optionsData) {
-		optType := optionsData[i]
-		optLen := int(optionsData[i+1]) * 8 // 选项长度单位是8字节
+	// 1. 从原始数据包中计算并提取真正的 ICMPv6 数据
+	// 偏移量计算: Eth(14) + IPv6(40) + ICMPv6头部(4:Type/Code/Checksum) + RA头部(12) = 70字节
+	icmpv6Offset := 70
+	icmpv6Data := packet.Data[icmpv6Offset:]
 
-		if optLen == 0 || i+optLen > len(optionsData) {
-			// 防止数据异常导致 panic 或死循环
-			break
+	// 2. 遍历 ICMPv6 数据的所有 Options (每个 Option 前2字节分别是 Type 和 Length)
+	for len(icmpv6Data) >= 2 {
+		optType := icmpv6Data[0]
+		optLen := int(icmpv6Data[1]) * 8 // 单位是8字节，包含Type和Len
+
+		if optLen < 2 || len(icmpv6Data) < optLen {
+			break // 数据异常，跳出循环
 		}
-
-		// 提取当前选项的完整数据部分（跳过前2字节的 Type 和 Len）
-		payload := optionsData[i+2 : i+optLen]
 
 		switch optType {
-		// ================= 修复点：前缀信息选项解析 =================
-		case optTypePrefixInfo:
-
-			if len(payload) < 30 {
-				fmt.Println("  [警告] 前缀选项数据不完整，已跳过。")
-				break
+		case 3: // 前缀信息选项 (Prefix Information)
+			if len(icmpv6Data) >= 32 { // 1+1+30 字节
+				// 提取前缀长度 (索引2)
+				prefixLen := icmpv6Data[2]
+				
+				// 提取 IPv6 前缀 (16字节，从第17字节开始，即索引16)
+				ipStr := net.IP(icmpv6Data[16:32]).String()
+				
+				fmt.Printf("  [前缀] 推荐前缀: %s/%d\n", ipStr, prefixLen)
 			}
-
-			// 2. 按照 RFC 4861 协议规范，精准切分二进制字节
-			prefixLen := payload[2] // 第3个字节：前缀长度 (例如 64)
-			
-			// 获取中间的 16 字节 IPv6 前缀 (从第17个字节开始，即索引16)
-			var prefixBytes [16]byte
-			copy(prefixBytes[:], payload[16:32])
-			
-			// 3. 转换为标准的 net.IP 格式并格式化打印
-			ipStr := net.IP(prefixBytes[:]).String()
-			
-			fmt.Printf("  [前缀] 推荐前缀: %s/%d\n", ipStr, prefixLen)
-
-
-		// ================= 其他选项解析 =================
-		case optTypeSrcLinkAddr:
-			if len(payload) >= 6 {
-				mac := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
-					payload[0], payload[1], payload[2], payload[3], payload[4], payload[5])
-				fmt.Printf("  [MAC 地址] 源链路层地址: %s\n", mac)
-			}
-		case optTypeMTU:
-			if len(payload) >= 4 {
-				mtu := binary.BigEndian.Uint32(payload[0:4])
+		case 5: // MTU 选项
+			if len(icmpv6Data) >= 8 {
+				mtu := binary.BigEndian.Uint32(icmpv6Data[4:8])
 				fmt.Printf("  [MTU] 链路 MTU: %d\n", mtu)
 			}
-		case optTypeRDNSS:
-			if len(payload) >= 2 {
-				lifetime := binary.BigEndian.Uint32(payload[0:4])
+		case 25: // DNS (RDNSS) 选项
+			if len(icmpv6Data) >= 24 {
+				lifetime := binary.BigEndian.Uint32(icmpv6Data[2:6])
 				fmt.Printf("  [DNS] RDNSS Lifetime: %d 秒\n", lifetime)
-				// 如果 lifetime > 0，可以从 payload[4:] 继续解析 DNS 服务器地址 (16字节一个)
+			}
+		case 1: // 源链路层地址选项
+			if len(icmpv6Data) >= 8 {
+				macStr := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
+					icmpv6Data[2], icmpv6Data[3], icmpv6Data[4], icmpv6Data[5], icmpv6Data[6], icmpv6Data[7])
+				fmt.Printf("  [MAC 地址] 源链路层地址: %s\n", macStr)
 			}
 		}
-
-		// 移动到下一个选项
-		i += optLen
+		
+		// 移动到下一个 Option
+		icmpv6Data = icmpv6Data[optLen:]
 	}
 }
