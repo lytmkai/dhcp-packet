@@ -24,6 +24,11 @@ const (
 	RAOptPrefixInformation   = 3  // 前缀信息
 	RAOptMTU                 = 5  // 链路 MTU
 	RAOptRDNSS               = 25 // 递归 DNS 服务器 (RFC 6106)
+
+	optTypePrefixInfo  byte = 3   // 前缀信息选项
+	optTypeSrcLinkAddr byte = 1   // 源链路层地址选项
+	optTypeMTU         byte = 5   // MTU 选项
+	optTypeRDNSS       byte = 25  // RDNSS (DNS) 选项
 )
 
 // bytesToIPv6 将 16 字节切片转换为 net.IP
