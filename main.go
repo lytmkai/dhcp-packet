@@ -200,7 +200,6 @@ func handleDHCP(packet gopacket.Packet, udp *layers.UDP) {
 }
 
 // ================= RA 处理逻辑 =================
-
 func handleRA(packet gopacket.Packet, icmp *layers.ICMPv6) {
 	// 仅处理 Router Advertisement (Type 134)
 	if icmp.TypeCode.Type() != 134 {
@@ -215,22 +214,33 @@ func handleRA(packet gopacket.Packet, icmp *layers.ICMPv6) {
 
 	fmt.Printf("\n[捕获到 RA 报文] 源 IPv6: %s\n", ipv6.SrcIP)
 
-	// ⚠️ Windows 兼容核心修复：
-	// 不使用 icmp.Payload，直接通过固定偏移量从原始数据包中提取 RA Options
-	rawData := packet.Data()
-	
-	// Ethernet(14) + IPv6(40) + ICMPv6(8) = 62
-	const raOptionsOffset = 62 
-	
-	if len(rawData) <= raOptionsOffset {
-		fmt.Println("  [信息] 数据包过短或无 Options (精简版 RA)")
+	// icmp.Payload = RA 固定字段(12B) + Options
+	// 结构: [HopLimit(1)][Flags(1)][RouterLifetime(2)][ReachableTime(4)][RetransTimer(4)] = 12 bytes
+	payload := icmp.Payload
+	if len(payload) < 12 {
+		fmt.Println("  [信息] RA 数据过短，无法解析")
 		fmt.Println("---")
 		return
 	}
 
-	// 截取 RA Options 部分并交由解析函数处理
-	optionsData := rawData[raOptionsOffset:]
-	parseRAOptions(optionsData)
+	// 解析 RA 固定字段
+	hopLimit := payload[0]
+	flags := payload[1]
+	routerLifetime := binary.BigEndian.Uint16(payload[2:4])
+	reachableTime := binary.BigEndian.Uint32(payload[4:8])
+	retransTimer := binary.BigEndian.Uint32(payload[8:12])
+
+	fmt.Printf("  [RA头部] 跳数限制: %d, 标志位: 0x%02X (M=%d, O=%d), 路由器生存期: %d秒\n",
+		hopLimit, flags, (flags>>7)&1, (flags>>6)&1, routerLifetime)
+	fmt.Printf("  [RA头部] 可达时间: %d ms, 重传定时器: %d ms\n", reachableTime, retransTimer)
+
+	// Options 从 payload[12:] 开始
+	optionsData := payload[12:]
+	if len(optionsData) == 0 {
+		fmt.Println("  [信息] 无 RA Options")
+	} else {
+		parseRAOptions(optionsData)
+	}
 	fmt.Println("---")
 }
 
