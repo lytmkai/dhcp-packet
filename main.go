@@ -269,7 +269,7 @@ func parseRAOptions(optionsData []byte) {
 		case optTypePrefixInfo:
 			if len(payload) >= 30 {
 				// 直接使用 gopacket 官方定义的结构体进行解包，彻底杜绝字节偏移错误
-				var prefixInfo layers.ICMPv6PrefixInfo
+				prefixInfo := &layers.ICMPv6OptionPrefixInformation{}
 				if err := prefixInfo.DecodeFromBytes(payload, gopacket.NilDecodeFeedback); err == nil {
 					
 					// 格式化并打印前缀 (gopacket 已经帮你把16字节的地址提取出来了)
