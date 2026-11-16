@@ -126,7 +126,7 @@ func handleDHCP(packet gopacket.Packet, udp *layers.UDP) {
 		}
 
 		if msgType == layers.DHCPMsgTypeAck {
-			fmt.Println("\n[捕获到 IPv4 DHCP ACK 报文 - 配置下发]")
+			fmt.Println("\n[%s 捕获到 IPv4 DHCP ACK 报文 - 配置下发]", time.Now().Format("15:04:05"))
 			fmt.Printf("  下发 IP (YourClientIP): %s\n", dhcp.YourClientIP)
 			fmt.Printf("  DHCP 服务器 (NextServerIP): %s\n", dhcp.NextServerIP)
 
@@ -169,7 +169,7 @@ func handleDHCP(packet gopacket.Packet, udp *layers.UDP) {
 			return
 		}
 
-		fmt.Println("\n[捕获到 IPv6 DHCPv6 报文]")
+		fmt.Println("\n[%s 捕获到 IPv6 DHCPv6 报文]", time.Now().Format("15:04:05"))
 		fmt.Printf("  报文类型: %v\n", dhcpv6.MsgType)
 
 		if ipv6Layer := packet.Layer(layers.LayerTypeIPv6); ipv6Layer != nil {
@@ -217,7 +217,7 @@ func handleRA(packet gopacket.Packet, icmp *layers.ICMPv6) {
 	}
 	ipv6 := ipv6Layer.(*layers.IPv6)
 
-	fmt.Printf("\n[捕获到 RA 报文] 源 IPv6: %s\n", ipv6.SrcIP)
+	fmt.Printf("\n[%s 捕获到 RA 报文] 源 IPv6: %s\n", time.Now().Format("15:04:05"), ipv6.SrcIP)
 
 	// icmp.Payload = RA 固定字段(12B) + Options
 	// 结构: [HopLimit(1)][Flags(1)][RouterLifetime(2)][ReachableTime(4)][RetransTimer(4)] = 12 bytes
