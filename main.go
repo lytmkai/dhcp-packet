@@ -267,18 +267,25 @@ func parseRAOptions(optionsData []byte) {
 		switch optType {
 		// ================= 修复点：前缀信息选项解析 =================
 		case optTypePrefixInfo:
-			if len(payload) >= 30 {
-				// 直接使用 gopacket 官方定义的结构体进行解包，彻底杜绝字节偏移错误
-				prefixInfo := &layers.ICMPv6OptionPrefixInformation{}
-				if err := prefixInfo.DecodeFromBytes(payload, gopacket.NilDecodeFeedback); err == nil {
-					
-					// 格式化并打印前缀 (gopacket 已经帮你把16字节的地址提取出来了)
-					fmt.Printf("  [前缀] 推荐前缀: %s/%d\n", prefixInfo.Prefix.String(), prefixInfo.PrefixLength)
-					
-					// 可选：打印前缀选项里的标志位和生存期
-					fmt.Printf("  [前缀] L=%d, A=%d, 有效时间: %d秒, 首选时间: %d秒\n", prefixInfo.LFlag, prefixInfo.AFlag, prefixInfo.ValidLifetime, prefixInfo.PreferredLifetime)
-				}
+
+			if len(payload) < 30 {
+				fmt.Println("  [警告] 前缀选项数据不完整，已跳过。")
+				break
 			}
+
+			// 2. 按照 RFC 4861 协议规范，精准切分二进制字节
+			prefixLen := payload[2] // 第3个字节：前缀长度 (例如 64)
+			
+			// 获取中间的 16 字节 IPv6 前缀 (从第17个字节开始，即索引16)
+			var prefixBytes [16]byte
+			copy(prefixBytes[:], payload[16:32])
+			
+			// 3. 转换为标准的 net.IP 格式并格式化打印
+			ipStr := net.IP(prefixBytes[:]).String()
+			
+			fmt.Printf("  [前缀] 推荐前缀: %s/%d\n", ipStr, prefixLen)
+
+
 		// ================= 其他选项解析 =================
 		case optTypeSrcLinkAddr:
 			if len(payload) >= 6 {
