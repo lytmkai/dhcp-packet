@@ -270,6 +270,7 @@ func parseRAOptions(optionsData []byte) {
 			if len(payload) >= 30 {
 				prefixLen := payload[2] // 跳过 Type(1)+Len(1)+PrefixLen(1)
 				flags := payload[3]
+				fmt.Printf("  [RA头部] 标志位: 0x%02X (M=%d, O=%d)\n", flags, (flags>>7)&1, (flags>>6)&1)
 				// 跳过: PrefixLen(1) + Flags(1) + ValidLifetime(4) + PreferredLifetime(4) + Reserved(4) = 14 字节
 				// 加上 Type+Len 2字节 = 16 字节，所以前缀从 payload[16] 开始
 				prefixBytes := payload[16:32] 
