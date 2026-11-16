@@ -244,55 +244,59 @@ func handleRA(packet gopacket.Packet, icmp *layers.ICMPv6) {
 	fmt.Println("---")
 }
 
-func parseRAOptions(data []byte) {
-	for len(data) >= 2 {
-		optType := data[0]
-		optLen := int(data[1]) * 8 // 长度单位为 8 字节
+func parseRAOptions(optionsData []byte) {
+	i := 0
+	// Options 格式: [Type(1)][Len(1)][Data(变长, 单位8字节)]
+	for i+2 <= len(optionsData) {
+		optType := optionsData[i]
+		optLen := int(optionsData[i+1]) * 8 // 选项长度单位是8字节
 
-		if optLen < 2 || len(data) < optLen {
+		if optLen == 0 || i+optLen > len(optionsData) {
+			// 防止数据异常导致 panic 或死循环
 			break
 		}
 
-		optData := data[2:optLen]
+		// 提取当前选项的完整数据部分（跳过前2字节的 Type 和 Len）
+		payload := optionsData[i+2 : i+optLen]
 
 		switch optType {
-		case RAOptSourceLinkLayerAddr:
-			if len(optData) >= 6 {
-				mac := net.HardwareAddr(optData[:6])
+		// ================= 修复点：前缀信息选项解析 =================
+		case optTypePrefixInfo:
+			if len(payload) >= 30 {
+				prefixLen := payload[2] // 跳过 Type(1)+Len(1)+PrefixLen(1)
+				flags := payload[3]
+				// 跳过: PrefixLen(1) + Flags(1) + ValidLifetime(4) + PreferredLifetime(4) + Reserved(4) = 14 字节
+				// 加上 Type+Len 2字节 = 16 字节，所以前缀从 payload[16] 开始
+				prefixBytes := payload[16:32] 
+
+				// 拼接成标准的 IPv6 地址并格式化
+				var ip net.IP = make([]byte, 16)
+				copy(ip, prefixBytes)
+				addrStr := fmt.Sprintf("%s", ip)
+				
+				fmt.Printf("  [前缀] 推荐前缀: %s/%d\n", addrStr, prefixLen)
+			}
+		// ================= 其他选项解析 =================
+		case optTypeSrcLinkAddr:
+			if len(payload) >= 6 {
+				mac := fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
+					payload[0], payload[1], payload[2], payload[3], payload[4], payload[5])
 				fmt.Printf("  [MAC 地址] 源链路层地址: %s\n", mac)
 			}
-
-		case RAOptMTU:
-			if len(optData) >= 4 {
-				mtu := binary.BigEndian.Uint32(optData[0:4])
+		case optTypeMTU:
+			if len(payload) >= 4 {
+				mtu := binary.BigEndian.Uint32(payload[0:4])
 				fmt.Printf("  [MTU] 链路 MTU: %d\n", mtu)
 			}
-
-		case RAOptPrefixInformation:
-			if len(optData) >= 24 {
-				prefix := net.IP(optData[8:24])
-				fmt.Printf("  [前缀] 推荐前缀: %s\n", prefix)
-			}
-
-		case RAOptRDNSS:
-			// RDNSS: [Reserved(2B)][Lifetime(4B)][Address(16B)...]
-			if len(optData) >= 22 {
-				lifetime := binary.BigEndian.Uint32(optData[0:4])
+		case optTypeRDNSS:
+			if len(payload) >= 2 {
+				lifetime := binary.BigEndian.Uint32(payload[0:4])
 				fmt.Printf("  [DNS] RDNSS Lifetime: %d 秒\n", lifetime)
-
-				addrStart := 8
-				for i := addrStart; i <= len(optData)-16; i += 16 {
-					dnsIP := bytesToIPv6(optData[i : i+16])
-					if dnsIP != nil {
-						fmt.Printf("  [DNS] 递归 DNS 服务器: %s\n", dnsIP)
-					}
-				}
+				// 如果 lifetime > 0，可以从 payload[4:] 继续解析 DNS 服务器地址 (16字节一个)
 			}
-
-		default:
-			fmt.Printf("  [选项 %d] 未知选项，长度: %d\n", optType, optLen)
 		}
 
-		data = data[optLen:]
+		// 移动到下一个选项
+		i += optLen
 	}
 }
